@@ -1,0 +1,50 @@
+USE crownfield_eye;
+
+-- =============================================
+-- PART 1: STORED PROCEDURE
+-- Get appointments for a specific patient
+-- =============================================
+DROP PROCEDURE IF EXISTS GetPatientAppointments;
+CREATE PROCEDURE GetPatientAppointments(IN p_patient_id VARCHAR(10))
+SELECT 
+    a.appointment_id,
+    a.appointment_date,
+    a.appointment_time,
+    a.notes,
+    c.clinic_name,
+    cl.full_name AS clinician_name
+FROM Appointment a
+LEFT JOIN Clinic c ON a.clinic_id = c.clinic_id
+LEFT JOIN Clinician cl ON a.clinician_id = cl.clinician_id
+WHERE a.patient_id = p_patient_id
+ORDER BY a.appointment_date DESC;
+
+-- Test the procedure
+CALL GetPatientAppointments('OP001');
+
+-- =============================================
+-- PART 2: AUDIT TRIGGER
+-- Logs when appointment notes change
+-- =============================================
+DROP TRIGGER IF EXISTS trg_appointment_notes_change;
+CREATE TRIGGER trg_appointment_notes_change
+AFTER UPDATE ON Appointment
+FOR EACH ROW
+INSERT INTO AppointmentAudit (
+    appointment_id, change_type, old_status, new_status, changed_at
+)
+VALUES (
+    NEW.appointment_id,
+    'NOTES_UPDATE',
+    OLD.notes,
+    NEW.notes,
+    CURRENT_TIMESTAMP
+);
+
+-- Test the trigger
+UPDATE Appointment 
+SET notes = 'Follow-up Required — new medication prescribed'
+WHERE appointment_id = 1;
+
+-- Verify audit log
+SELECT * FROM AppointmentAudit WHERE appointment_id = 1;
